@@ -1,0 +1,47 @@
+name: Docker macOS via Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-macos-docker:
+    runs-on: ubuntu-latest
+    container:
+      image: docker:dind
+      options: --privileged
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies inside DinD
+        run: |
+          apk add --no-cache curl iptables tailscale bridge-utils qemu-img
+
+      - name: Start Tailscale Daemon & Connect
+        run: |
+          tailscaled --tun=userspace-networking &
+          sleep 3
+          
+          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=gh-runner-docker-mac --accept-routes
+          
+          TS_IP=$(tailscale ip -4)
+          echo "Tailscale IP: $TS_IP"
+
+      - name: Run macOS Docker Container (SickCodes)
+        run: |
+          # Запускаем macOS образ с поддержкой VNC
+          docker run -d \
+            --name macos-osx \
+            --device /dev/kvm \
+            --cap-add NET_ADMIN \
+            -p 5900:5900 \
+            sickcodes/docker-osx:latest
+
+      - name: Connection Details & Keep Alive
+        run: |
+          TS_IP=$(tailscale ip -4)
+          echo "=== DOCKER MACOS ACCESS ==="
+          echo "VNC Address: vnc://$TS_IP:5900"
+          echo "==========================="
+          sleep 21600
