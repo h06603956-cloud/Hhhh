@@ -6,9 +6,9 @@ on:
 jobs:
   run-macos-docker:
     runs-on: ubuntu-latest
-    # Включаем привилегированный режим и виртуализацию для QEMU/KVM в Docker
+    # Используем стандартный стабильный тег dind
     container:
-      image: docker:24.05-dind
+      image: docker:dind
       options: --privileged
 
     steps:
@@ -33,7 +33,7 @@ jobs:
 
       - name: Run macOS Docker Container (dockur/macos)
         run: |
-          # Запускаем macOS в Docker. По умолчанию он поднимает веб-интерфейс noVNC на порту 8006
+          # Запускаем macOS в Docker. Веб-интерфейс noVNC доступен на порту 8006
           docker run -d \
             --name macos \
             --device /dev/kvm \
