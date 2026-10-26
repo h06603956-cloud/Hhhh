@@ -12,6 +12,12 @@ jobs:
         run: |
           brew install tailscale
 
+      - name: Start Tailscale Service
+        run: |
+          sudo brew services start tailscale
+          # Ожидание инициализации демона
+          sleep 3
+
       - name: Establish Tailscale Connection
         run: |
           sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=gh-runner-mac-${{ github.run_id }}
