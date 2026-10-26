@@ -1,0 +1,54 @@
+name: Docker macOS (dockur) via Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-macos-docker:
+    runs-on: ubuntu-latest
+    # Включаем привилегированный режим и виртуализацию для QEMU/KVM в Docker
+    container:
+      image: docker:24.05-dind
+      options: --privileged
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies inside DinD
+        run: |
+          apk add --no-cache curl iptables tailscale bridge-utils qemu-img
+
+      - name: Start Tailscale Daemon & Connect
+        run: |
+          # Запускаем демон Tailscale в фоне
+          tailscaled --tun=userspace-networking &
+          sleep 3
+          
+          # Подключаемся к вашей сети Tailscale
+          tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=gh-runner-docker-mac --accept-routes
+          
+          TS_IP=$(tailscale ip -4)
+          echo "Tailscale IP: $TS_IP"
+
+      - name: Run macOS Docker Container (dockur/macos)
+        run: |
+          # Запускаем macOS в Docker. По умолчанию он поднимает веб-интерфейс noVNC на порту 8006
+          docker run -d \
+            --name macos \
+            --device /dev/kvm \
+            --cap-add NET_ADMIN \
+            -p 8006:8006 \
+            -p 5900:5900 \
+            -e RAM_SIZE=4G \
+            -e CPU_CORES=2 \
+            dockur/macos
+
+      - name: Connection Details & Keep Alive
+        run: |
+          TS_IP=$(tailscale ip -4)
+          echo "=== DOCKER MACOS (noVNC) ACCESS ==="
+          echo "Open this link in your browser (via Tailscale):"
+          echo "http://$TS_IP:8006"
+          echo "==================================="
+          sleep 21600
