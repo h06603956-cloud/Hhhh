@@ -1,0 +1,60 @@
+name: macOS AnyDesk via Tailscale
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-anydesk:
+    runs-on: macos-14
+
+    steps:
+      - name: Install Tailscale & AnyDesk
+        run: |
+          brew install tailscale
+          brew install --cask anydesk
+
+      - name: Start Tailscale Service
+        run: |
+          sudo brew services start tailscale
+          sleep 3
+
+      - name: Establish Tailscale Connection
+        run: |
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=gh-runner-mac-${{ github.run_id }} --accept-routes
+          
+          TS_IP=""
+          for i in {1..15}; do
+            TS_IP=$(tailscale ip -4 2>/dev/null || true)
+            if [ -n "$TS_IP" ]; then
+              break
+            fi
+            sleep 2
+          done
+          
+          if [ -z "$TS_IP" ]; then
+            echo "Error: Failed to get Tailscale IP."
+            exit 1
+          fi
+          
+          echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
+          echo "Tailscale IP: $TS_IP"
+
+      - name: Configure AnyDesk Unattended Access
+        run: |
+          # Запуск службы AnyDesk
+          sudo launchctl load -w /Library/LaunchDaemons/com.anydesk.anydesk.plist || true
+          
+          # Установка пароля для unattended access без подтверждения
+          echo "password123" | sudo anydesk --set-password
+          
+          # Получение AnyDesk ID
+          ANYDESK_ID=$(anydesk --get-id || echo "Check GUI")
+          echo "AnyDesk ID: $ANYDESK_ID"
+
+      - name: Connection Details & Keep Alive
+        run: |
+          echo "=== ANYDESK / TAILSCALE ACCESS ==="
+          echo "Tailscale IP: $(tailscale ip -4)"
+          echo "AnyDesk Pass: password123"
+          echo "================================="
+          sleep 21600
